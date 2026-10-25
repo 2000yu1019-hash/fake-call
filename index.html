@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="コール">
+<meta name="theme-color" content="#000000">
+<title>コールタイマー</title>
+<meta name="description" content="時間を決めると、LINE風・iPhone風の着信画面が出るウェブアプリ。飲み会を抜けたい時に。登録不要・無料。">
+<meta property="og:title" content="コールタイマー｜好きな時間に電話がかかってくる">
+<meta property="og:description" content="時間を決めると、LINE風・iPhone風の着信画面が出るウェブアプリ。飲み会を抜けたい時に。登録不要・無料。">
+<meta property="og:image" content="icon-512.png">
+<meta name="twitter:card" content="summary">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#f2f2f7; --card:#fff; --text:#111; --sub:#6b6b70; --line:#e3e3e8; --accent:#34c759; --accent2:#06c755;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  .screen{position:fixed;inset:0;display:none;overflow:hidden}
+  .screen.on{display:block}
+  svg{display:block}
+
+  /* ---------- 設定画面 ---------- */
+  #setup{overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 30px)}
+  #setup h1{font-size:26px;margin:4px 4px 2px}
+  #setup .lead{color:var(--sub);font-size:13px;margin:0 4px 16px}
+  .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:14px}
+  .card h2{font-size:13px;color:var(--sub);font-weight:600;margin:0 0 10px}
+  .seg{display:flex;gap:8px}
+  .seg button{flex:1;padding:14px 6px;border-radius:12px;border:2px solid var(--line);font-weight:700;font-size:15px;
+    display:flex;flex-direction:column;align-items:center;gap:6px}
+  .seg button small{font-weight:400;font-size:11px;color:var(--sub)}
+  .seg button.sel{border-color:var(--accent);background:#effaf2}
+  .seg .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center}
+  .row{display:flex;gap:12px;align-items:center}
+  .avatar-pick{width:64px;height:64px;border-radius:50%;background:#c7c7cc center/cover;flex:none;position:relative;
+    display:grid;place-items:center;color:#fff;font-size:26px;font-weight:600;overflow:hidden}
+  .avatar-pick .cam{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.45);font-size:10px;text-align:center;padding:2px 0}
+  input[type=text],input[type=number],input[type=time]{width:100%;font:inherit;font-size:17px;padding:11px 12px;border:1px solid var(--line);
+    border-radius:10px;background:#fafafa;color:var(--text);-webkit-user-select:text;user-select:text}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  .chip{padding:7px 12px;border-radius:999px;background:#eeeef3;font-size:14px}
+  .chip.sel{background:var(--accent);color:#fff}
+  .small-link{font-size:13px;color:#0a7cff;margin-top:8px;padding:4px 0}
+  .opt{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:15px}
+  .opt:first-of-type{border-top:0}
+  .opt small{display:block;color:var(--sub);font-size:11px}
+  .switch{width:51px;height:31px;border-radius:999px;background:#e5e5ea;position:relative;flex:none;transition:.2s}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:.2s}
+  .switch.on{background:var(--accent)}
+  .switch.on::after{left:22px}
+  .custom{display:none;margin-top:10px;gap:8px;align-items:center}
+  .custom.on{display:flex}
+  .go{width:100%;padding:17px;border-radius:14px;background:var(--accent);color:#fff;font-size:18px;font-weight:700;margin-top:4px}
+  .go:active{opacity:.8}
+  .test{width:100%;padding:12px;border-radius:14px;background:#fff;color:#0a7cff;font-size:15px;margin-top:10px}
+  details.help{background:#fff;border-radius:14px;padding:12px 14px;margin-top:14px;font-size:13px;line-height:1.6;color:#333}
+  details.help summary{font-weight:700;font-size:14px;cursor:pointer}
+  details.help li{margin:4px 0}
+  .install{background:#fff;border-radius:14px;padding:14px;margin-bottom:14px;display:none;border:2px solid var(--accent)}
+  .install.on{display:block}
+  .install b{font-size:15px}
+  .install p{margin:6px 0 0;font-size:13px;line-height:1.6;color:#333}
+  .install .x{float:right;color:var(--sub);font-size:20px;line-height:1;padding:0 4px}
+  .install .ibtn{margin-top:10px;width:100%;padding:11px;border-radius:10px;background:var(--accent);color:#fff;font-weight:700;display:none}
+  .share{width:100%;padding:12px;border-radius:14px;background:#fff;font-size:15px;margin-top:10px;font-weight:600}
+  .privacy{font-size:11px;color:var(--sub);text-align:center;margin:16px 8px 0;line-height:1.6}
+  .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 30px);transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;
+    padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:.3s;pointer-events:none;z-index:9}
+  .toast.on{opacity:1}
+
+  /* ---------- 待機画面 ---------- */
+  #standby{background:#000;color:#555;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+  #standby.on{display:flex}
+  #standby .cd{font-size:15px;letter-spacing:.05em}
+  #standby .cd b{display:block;font-size:44px;font-weight:200;color:#777;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+  #standby .hint{font-size:11px;color:#3a3a3a;margin-top:18px;line-height:1.6}
+  #standby .cancel{margin-top:34px;padding:10px 26px;border:1px solid #333;border-radius:999px;color:#777;font-size:14px}
+  #standby.dark .cd,#standby.dark .hint,#standby.dark .cancel{opacity:0}
+
+  /* ---------- 共通：着信/通話 ---------- */
+  .bgimg{position:absolute;inset:-40px;background:center/cover;filter:blur(30px) saturate(1.2);transform:scale(1.1)}
+  .shade{position:absolute;inset:0}
+  .layer{position:absolute;inset:0;display:flex;flex-direction:column;color:#fff;
+    padding:calc(env(safe-area-inset-top) + 20px) 0 calc(env(safe-area-inset-bottom) + 30px)}
+  .circle{border-radius:50%;display:grid;place-items:center}
+  .circle svg{fill:#fff}
+  .lbl{font-size:13px;margin-top:8px;text-align:center}
+
+  /* ---------- iPhone風 ---------- */
+  .ios{font-family:-apple-system,"SF Pro Display","Hiragino Sans",sans-serif}
+  .ios .shade{background:linear-gradient(180deg,rgba(0,0,0,.25),rgba(0,0,0,.45))}
+  .ios.nophoto .bgimg{background:linear-gradient(160deg,#5b6170 0%,#2d3038 55%,#1b1c20 100%);filter:none}
+  .ios .top{text-align:center;padding:62px 20px 0}
+  .ios .top .sub{font-size:17px;opacity:.75;margin-bottom:6px}
+  .ios .top .name{font-size:38px;font-weight:400;letter-spacing:.01em;line-height:1.15;word-break:break-all}
+  .ios .top .timer{font-size:17px;opacity:.85;margin-top:8px;font-variant-numeric:tabular-nums}
+  .ios .bottom{margin-top:auto;padding:0 44px}
+  .ios .minis{display:flex;justify-content:space-between;margin-bottom:46px;padding:0 6px}
+  .ios .mini{display:flex;flex-direction:column;align-items:center;font-size:13px;width:84px}
+  .ios .mini svg{width:28px;height:28px;fill:#fff;margin-bottom:6px}
+  .ios .bigs{display:flex;justify-content:space-between}
+  .ios .big{display:flex;flex-direction:column;align-items:center;width:84px}
+  .ios .big .circle{width:76px;height:76px}
+  .ios .big .circle svg{width:36px;height:36px}
+  .red{background:#ff3b30}
+  .green{background:#34c759}
+  .hang svg{transform:rotate(135deg)}
+  .ios .grid{display:grid;grid-template-columns:repeat(3,1fr);row-gap:26px;padding:0 34px;margin-top:auto;margin-bottom:24px}
+  .ios .gbtn{display:flex;flex-direction:column;align-items:center}
+  .ios .gbtn .circle{width:78px;height:78px;background:rgba(255,255,255,.22);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  .ios .gbtn .circle svg{width:32px;height:32px}
+  .ios .gbtn.act .circle{background:#fff}
+  .ios .gbtn.act .circle svg{fill:#111}
+  .ios .gbtn.end .circle{background:#ff3b30}
+  .ios .avatar-sm{width:56px;height:56px;border-radius:50%;margin:0 auto 12px;background:#8e8e93 center/cover;display:grid;place-items:center;font-size:24px}
+  .ios.calling .top{padding-top:56px}
+
+  /* ---------- LINE風 ---------- */
+  .ln{font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif}
+  .ln .shade{background:rgba(20,22,26,.62)}
+  .ln.nophoto .bgimg{background:linear-gradient(180deg,#3a4049,#1d2025);filter:none}
+  .ln .head{text-align:center;padding-top:9vh}
+  .ln .applbl{font-size:13px;opacity:.85;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:28px}
+  .ln .applbl i{width:18px;height:18px;border-radius:5px;background:#06c755;display:grid;place-items:center}
+  .ln .applbl i svg{width:12px;height:12px;fill:#fff}
+  .ln .pic{width:112px;height:112px;border-radius:50%;margin:0 auto;background:#b8bcc4 center/cover;display:grid;place-items:center;overflow:hidden}
+  .ln .pic svg{width:76px;height:76px;fill:#fff;margin-top:22px}
+  .ln .name{font-size:24px;font-weight:700;margin-top:18px;padding:0 20px;word-break:break-all}
+  .ln .status{font-size:14px;opacity:.8;margin-top:10px;font-variant-numeric:tabular-nums}
+  .ln .bottom{margin-top:auto;display:flex;justify-content:space-around;padding:0 40px}
+  .ln .big{display:flex;flex-direction:column;align-items:center}
+  .ln .big .circle{width:72px;height:72px}
+  .ln .big .circle svg{width:34px;height:34px}
+  .ln .tools{margin-top:auto;display:flex;justify-content:space-around;padding:0 30px 34px}
+  .ln .tool{display:flex;flex-direction:column;align-items:center}
+  .ln .tool .circle{width:62px;height:62px;background:rgba(255,255,255,.18)}
+  .ln .tool .circle svg{width:28px;height:28px}
+  .ln .tool.act .circle{background:#fff}
+  .ln .tool.act .circle svg{fill:#222}
+  .ln .tool .lbl{font-size:12px;opacity:.9}
+  .ln .endrow{display:flex;justify-content:center}
+  .ln .endrow .circle{width:72px;height:72px}
+  .ln .endrow .circle svg{width:34px;height:34px}
+  .pulse .circle.green{animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,199,89,.55)}70%{box-shadow:0 0 0 18px rgba(52,199,89,0)}100%{box-shadow:0 0 0 0 rgba(52,199,89,0)}}
+  .ln .dots::after{content:"";animation:dots 1.5s steps(4) infinite}
+  @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+</style>
+</head>
+<body>
+
+<!-- ================= 設定画面 ================= -->
+<section id="setup" class="screen on">
+  <h1>コールタイマー</h1>
+  <p class="lead">時間を決めると、電話がかかってきたような画面が出ます。</p>
+
+  <div class="install" id="install">
+    <button class="x" id="installClose" aria-label="閉じる">×</button>
+    <b>📲 ホーム画面に追加しよう</b>
+    <p id="installText">追加したアイコンから開くと、アドレスバーが消えて本物の着信そっくりになります。</p>
+    <button class="ibtn" id="installBtn">ホーム画面に追加する</button>
+  </div>
+
+  <div class="card">
+    <h2>着信画面のデザイン</h2>
+    <div class="seg" id="styleSeg">
+      <button data-v="line"><span class="ico" style="background:#06c755"><svg viewBox="0 0 24 24" width="24" height="24" fill="#fff"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5 1.1-.5 5.9-3.5 8-6C21.4 14.3 22 12.7 22 11c0-4.4-4.5-8-10-8z"/></svg></span>LINE風<small>アプリの通話</small></button>
+      <button data-v="ios"><span class="ico" style="background:#34c759"><svg viewBox="0 0 24 24" width="24" height="24" fill="#fff"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></span>iPhone風<small>普通の電話</small></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>かけてくる人</h2>
+    <div class="row">
+      <label class="avatar-pick" id="avatarPick"><span id="avatarInitial"></span><span class="cam">写真</span>
+        <input type="file" accept="image/*" id="photoInput" hidden>
+      </label>
+      <input type="text" id="nameInput" maxlength="30" placeholder="名前（例：お母さん）">
+    </div>
+    <div class="chips" id="presetChips"></div>
+    <button class="small-link" id="removePhoto" style="display:none">写真を削除</button>
+  </div>
+
+  <div class="card">
+    <h2>いつ鳴らす？</h2>
+    <div class="chips" id="timeChips" style="margin-top:0"></div>
+    <div class="custom" id="customMin"><input type="number" id="minInput" min="1" max="600" inputmode="numeric" placeholder="分"><span style="flex:none">分後</span></div>
+    <div class="custom" id="customAt"><input type="time" id="atInput"><span style="flex:none">に鳴らす</span></div>
+  </div>
+
+  <div class="card">
+    <h2>オプション</h2>
+    <div style="font-size:15px;margin-bottom:8px">着信の知らせ方</div>
+    <div class="chips" id="ringChips" style="margin:0 0 6px"></div>
+    <div class="opt"><span>着信中にバイブも鳴らす<small>Androidのみ（iPhoneのブラウザはバイブ非対応）</small></span><button class="switch" id="swVib"></button></div>
+    <div class="opt"><span>待機中は真っ暗にする<small>画面を2回タップすると残り時間が見えます</small></span><button class="switch" id="swDark"></button></div>
+  </div>
+
+  <button class="go" id="startBtn">タイマー開始</button>
+  <button class="test" id="testBtn">今すぐ着信を見てみる（3秒後）</button>
+
+  <button class="share" id="shareBtn">🎁 友だちに教える</button>
+
+  <details class="help">
+    <summary>使い方と注意</summary>
+    <ol>
+      <li>デザイン・名前・時間を決めて「タイマー開始」を押します。</li>
+      <li>画面が黒い待機画面になります。<b>このアプリを開いたまま</b>スマホを置いておいてください。</li>
+      <li>時間になると着信画面が出て、着信音が鳴ります。緑のボタンで「通話中」の画面になり、通話時間が進みます。赤いボタンで終了です。</li>
+    </ol>
+    <p><b>大事なこと</b></p>
+    <ul>
+      <li>ウェブアプリなので、ほかのアプリに切り替えたり画面を消したりすると鳴りません。待機中は画面がつきっぱなしになるようにしています。</li>
+      <li>iPhoneの場合、着信音は音量ボタンの大きさで鳴ります。事前に「今すぐ着信を見てみる」で音量を確認してください。</li>
+      <li>着信は45秒たつと自動で止まります。</li>
+      <li>「音なし（バイブのみ）」はAndroidでだけ震えます。iPhoneはウェブアプリから震わせることができないため、着信音を小さめの音量で使うのがおすすめです。</li>
+    </ul>
+    <p><b>ホーム画面に追加（おすすめ）</b></p>
+    <ul>
+      <li>iPhone：Safariで開き、下の共有ボタン →「ホーム画面に追加」。</li>
+      <li>Android：Chromeの右上「︙」→「ホーム画面に追加」。</li>
+    </ul>
+    <p>追加したアイコンから開くと、アドレスバーのない全画面になり、本物の着信のように見えます。</p>
+  </details>
+  <p class="privacy">🔒 名前や写真は、このスマホの中にだけ保存されます。<br>どこにも送信されず、登録も不要です。</p>
+</section>
+
+<!-- ================= 待機画面 ================= -->
+<section id="standby" class="screen">
+  <div class="cd">着信まで<b id="cdText">0:00</b><span id="cdWho"></span></div>
+  <div class="hint">このまま画面を開いておいてください<br>2回タップで表示切り替え</div>
+  <button class="cancel" id="cancelBtn">キャンセル</button>
+</section>
+
+<!-- ================= 着信・通話 ================= -->
+<section id="call" class="screen"></section>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+
+  // ---------- アイコン ----------
+  const P = {
+    phone:'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z',
+    speaker:'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
+    micoff:'M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z',
+    video:'M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z',
+    add:'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+    msg:'M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z',
+    alarm:'M22 5.72l-4.6-3.86-1.29 1.53 4.6 3.86L22 5.72zM7.88 3.39L6.6 1.86 2 5.71l1.29 1.53 4.59-3.85zM12.5 8H11v6l4.75 2.85.75-1.23-4-2.37V8zM12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z',
+    person:'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
+    bubble:'M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5 1.1-.5 5.9-3.5 8-6C21.4 14.3 22 12.7 22 11c0-4.4-4.5-8-10-8z'
+  };
+  const icon = k => `<svg viewBox="0 0 24 24"><path d="${P[k]}"/></svg>`;
+  const keypadIcon = (() => { let c=''; for(let r=0;r<4;r++) for(let q=0;q<3;q++) if(r<3||q===1) c+=`<circle cx="${5+q*7}" cy="${2.5+r*6.3}" r="2.1"/>`; return `<svg viewBox="0 0 24 24">${c}</svg>`; })();
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // ---------- 設定の保存 ----------
+  const store = {
+    get(k, d){ try{ const v = localStorage.getItem('fc_'+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+    set(k, v){ try{ localStorage.setItem('fc_'+k, JSON.stringify(v)); }catch(e){} }
+  };
+  const S = {
+    style: store.get('style','line'),
+    name: store.get('name','お母さん'),
+    photo: store.get('photo',''),
+    time: store.get('time',300),       // 秒 / 'min' / 'at'
+    min: store.get('min',20),
+    at: store.get('at',''),
+    ring: store.get('ring','line'),   // 'line' / 'ios' / 'none'(バイブのみ)
+    vib: store.get('vib',true),
+    dark: store.get('dark',false)
+  };
+  const save = () => Object.keys(S).forEach(k => store.set(k, S[k]));
+
+  const PRESETS = ['お母さん','お父さん','おばあちゃん','バイト先','店長','先輩','ゆうと','けんた','さき','あや'];
+  const RINGS = [['line','LINE風の着信音'],['ios','iPhone風の着信音'],['none','音なし（バイブのみ）']];
+  const TIMES = [[10,'10秒'],[30,'30秒'],[60,'1分'],[180,'3分'],[300,'5分'],[600,'10分'],[900,'15分'],[1800,'30分'],['min','分を入力'],['at','時刻で指定']];
+
+  // ---------- 設定画面の描画 ----------
+  function renderSetup(){
+    document.querySelectorAll('#styleSeg button').forEach(b => b.classList.toggle('sel', b.dataset.v===S.style));
+    $('#nameInput').value = S.name;
+    const ap = $('#avatarPick');
+    ap.style.backgroundImage = S.photo ? `url(${S.photo})` : '';
+    $('#avatarInitial').textContent = S.photo ? '' : (S.name.trim()[0] || '?');
+    $('#removePhoto').style.display = S.photo ? 'block' : 'none';
+    $('#presetChips').innerHTML = PRESETS.map(p => `<button class="chip ${p===S.name?'sel':''}" data-p="${esc(p)}">${esc(p)}</button>`).join('');
+    $('#timeChips').innerHTML = TIMES.map(([v,l]) => `<button class="chip ${v===S.time?'sel':''}" data-t="${v}">${l}</button>`).join('');
+    $('#customMin').classList.toggle('on', S.time==='min');
+    $('#customAt').classList.toggle('on', S.time==='at');
+    $('#minInput').value = S.min;
+    if(!S.at){ const d=new Date(Date.now()+30*60000); S.at = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+    $('#atInput').value = S.at;
+    $('#ringChips').innerHTML = RINGS.map(([v,l]) => `<button class="chip ${v===S.ring?'sel':''}" data-r="${v}">${l}</button>`).join('');
+    $('#swVib').classList.toggle('on', S.vib);
+    $('#swDark').classList.toggle('on', S.dark);
+  }
+
+  $('#styleSeg').addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; S.style=b.dataset.v; save(); renderSetup(); });
+  $('#presetChips').addEventListener('click', e => { const b=e.target.closest('.chip'); if(!b) return; S.name=b.dataset.p; save(); renderSetup(); });
+  $('#nameInput').addEventListener('input', e => { S.name=e.target.value; save();
+    document.querySelectorAll('#presetChips .chip').forEach(c=>c.classList.toggle('sel', c.dataset.p===S.name));
+    if(!S.photo) $('#avatarInitial').textContent = S.name.trim()[0] || '?'; });
+  $('#timeChips').addEventListener('click', e => { const b=e.target.closest('.chip'); if(!b) return;
+    const t=b.dataset.t; S.time = isNaN(t) ? t : Number(t); save(); renderSetup(); });
+  $('#minInput').addEventListener('input', e => { S.min=Math.max(1, Number(e.target.value)||1); save(); });
+  $('#atInput').addEventListener('input', e => { S.at=e.target.value; save(); });
+  $('#ringChips').addEventListener('click', e => { const b=e.target.closest('.chip'); if(!b) return; S.ring=b.dataset.r; if(S.ring==='none') S.vib=true; save(); renderSetup(); });
+  [['#swVib','vib'],['#swDark','dark']].forEach(([id,k]) =>
+    $(id).addEventListener('click', () => { S[k]=!S[k]; save(); renderSetup(); }));
+  $('#removePhoto').addEventListener('click', () => { S.photo=''; save(); renderSetup(); });
+
+  // 写真は縮小してから保存
+  $('#photoInput').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const img = new Image(); const url = URL.createObjectURL(f);
+    img.onload = () => {
+      const size = 360, c = document.createElement('canvas'); c.width=c.height=size;
+      const s = Math.min(img.width, img.height);
+      c.getContext('2d').drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0, 0, size, size);
+      S.photo = c.toDataURL('image/jpeg', .82); URL.revokeObjectURL(url); save(); renderSetup();
+    };
+    img.src = url; e.target.value='';
+  });
+
+  // ---------- 着信音（自作の音をWAVで生成） ----------
+  function makeRingtone(style){
+    const sr = 22050, len = style==='line' ? 3.2 : 3.0, n = Math.floor(sr*len);
+    const data = new Float32Array(n);
+    const tone = (t0, f, dur, vol, bright) => {
+      const s0 = Math.floor(t0*sr), sN = Math.min(n, s0+Math.floor(dur*sr));
+      for(let i=s0;i<sN;i++){
+        const t = (i-s0)/sr, env = Math.min(1, t*200) * Math.exp(-t*(bright?5:7));
+        data[i] += vol*env*(Math.sin(2*Math.PI*f*t) + .35*Math.sin(2*Math.PI*f*2*t) + (bright?.18:.08)*Math.sin(2*Math.PI*f*3.01*t));
+      }
+    };
+    const N = x => 440*Math.pow(2,(x-69)/12);
+    if(style==='line'){
+      // 明るいベル系（オリジナル）
+      const seq = [[0,76],[.18,79],[.36,84],[.54,83],[.72,79],[1.08,76],[1.26,79],[1.44,84],[1.62,86],[1.8,84]];
+      seq.forEach(([t,m]) => tone(t, N(m), .7, .28, true));
+    } else {
+      // マリンバ系（オリジナル）
+      const seq = [[0,72],[.14,79],[.28,76],[.42,84],[.70,79],[.84,76],[.98,72],[1.12,79],[1.40,76],[1.54,84],[1.68,79],[1.82,76]];
+      seq.forEach(([t,m]) => tone(t, N(m), .45, .3, false));
+    }
+    // WAVに変換
+    const buf = new ArrayBuffer(44+n*2), v = new DataView(buf);
+    const w = (o,s) => { for(let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+    w(0,'RIFF'); v.setUint32(4,36+n*2,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true);
+    v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+    v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,n*2,true);
+    for(let i=0;i<n;i++){ const s=Math.max(-1,Math.min(1,data[i])); v.setInt16(44+i*2, s*32767, true); }
+    return URL.createObjectURL(new Blob([buf], {type:'audio/wav'}));
+  }
+  const ringURL = {};
+  const audio = new Audio(); audio.loop = true; audio.preload = 'auto'; audio.setAttribute('playsinline','');
+
+  // 開始ボタンを押した瞬間に音声を「解錠」しておく（スマホは操作なしで音を出せないため）
+  function unlockAudio(){
+    if(S.ring==='none') return;
+    ringURL[S.ring] = ringURL[S.ring] || makeRingtone(S.ring);
+    audio.src = ringURL[S.ring]; audio.muted = true;
+    const p = audio.play(); if(p && p.then) p.then(() => { audio.pause(); audio.currentTime=0; audio.muted=false; }).catch(()=>{ audio.muted=false; });
+  }
+  function startRing(){
+    if(S.ring!=='none'){ audio.muted=false; audio.currentTime=0; const p=audio.play(); if(p&&p.catch) p.catch(()=>{}); }
+    if(S.vib && navigator.vibrate){ const vib=()=>navigator.vibrate([900,600,900,1400]); vib(); vibTimer=setInterval(vib, 3800); }
+  }
+  function stopRing(){ try{ audio.pause(); audio.currentTime=0; }catch(e){} clearInterval(vibTimer); if(navigator.vibrate) navigator.vibrate(0); }
+  let vibTimer = null;
+
+  // ---------- スリープ防止 ----------
+  let wakeLock = null;
+  async function keepAwake(){
+    try{ if('wakeLock' in navigator && !wakeLock){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => wakeLock=null); } }catch(e){}
+  }
+  function releaseAwake(){ try{ wakeLock && wakeLock.release(); }catch(e){} wakeLock=null; }
+
+  // ---------- 画面切り替え ----------
+  const show = id => document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id===id));
+  let target = 0, tick = null, phase = 'setup', ringTimeout = null, callStart = 0, callTick = null;
+
+  function computeTarget(){
+    if(S.time==='min') return Date.now() + Math.max(1,S.min)*60000;
+    if(S.time==='at'){
+      const [h,m] = (S.at||'0:0').split(':').map(Number); const d = new Date(); d.setHours(h,m,0,0);
+      if(d.getTime() <= Date.now()+1000) d.setDate(d.getDate()+1);
+      return d.getTime();
+    }
+    return Date.now() + S.time*1000;
+  }
+  function fmt(sec){ sec=Math.max(0,Math.ceil(sec)); const h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+    return h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`; }
+
+  function startTimer(t){
+    if(!S.name.trim()){ S.name='お母さん'; save(); renderSetup(); }
+    unlockAudio(); keepAwake();
+    target = t; phase = 'standby';
+    $('#standby').classList.toggle('dark', S.dark);
+    $('#cdWho').textContent = `${S.style==='line'?'LINE風':'iPhone風'}・${S.name}`;
+    show('standby'); updateCountdown();
+    clearInterval(tick); tick = setInterval(updateCountdown, 250);
+  }
+  function updateCountdown(){
+    const left = (target - Date.now())/1000;
+    $('#cdText').textContent = fmt(left);
+    if(left <= 0 && phase==='standby'){ clearInterval(tick); incoming(); }
+  }
+  $('#startBtn').addEventListener('click', () => startTimer(computeTarget()));
+  $('#testBtn').addEventListener('click', () => startTimer(Date.now()+3000));
+  $('#cancelBtn').addEventListener('click', backToSetup);
+
+  let lastTap = 0;
+  $('#standby').addEventListener('click', e => {
+    if(e.target.closest('.cancel')) return;
+    const now = Date.now(); if(now-lastTap < 350) $('#standby').classList.toggle('dark'); lastTap = now;
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState==='visible'){
+      if(phase!=='setup') keepAwake();
+      if(phase==='standby') updateCountdown();
+    }
+  });
+
+  function backToSetup(){
+    phase='setup'; clearInterval(tick); clearInterval(callTick); clearTimeout(ringTimeout); stopRing(); releaseAwake();
+    $('#call').innerHTML=''; show('setup'); renderSetup();
+  }
+
+  // ---------- 着信画面 ----------
+  const name = () => esc(S.name.trim() || 'お母さん');
+  const bg = () => S.photo ? `<div class="bgimg" style="background-image:url(${S.photo})"></div>` : `<div class="bgimg"></div>`;
+
+  function incoming(){
+    phase='ringing'; const c = $('#call');
+    if(S.style==='ios'){
+      c.className = 'screen ios' + (S.photo?'':' nophoto');
+      c.innerHTML = `${bg()}<div class="shade"></div><div class="layer">
+        <div class="top"><div class="sub">携帯電話</div><div class="name">${name()}</div></div>
+        <div class="bottom">
+          <div class="minis"><div class="mini">${icon('alarm')}リマインダー</div><div class="mini">${icon('msg')}メッセージ</div></div>
+          <div class="bigs">
+            <button class="big" data-a="decline"><div class="circle red hang">${icon('phone')}</div><div class="lbl">拒否</div></button>
+            <button class="big" data-a="accept"><div class="circle green">${icon('phone')}</div><div class="lbl">応答</div></button>
+          </div>
+        </div></div>`;
+    } else {
+      c.className = 'screen ln' + (S.photo?'':' nophoto');
+      c.innerHTML = `${bg()}<div class="shade"></div><div class="layer">
+        <div class="head">
+          <div class="applbl"><i>${icon('bubble')}</i>LINE音声通話</div>
+          <div class="pic" ${S.photo?`style="background-image:url(${S.photo})"`:''}>${S.photo?'':icon('person')}</div>
+          <div class="name">${name()}</div>
+          <div class="status dots">着信中</div>
+        </div>
+        <div class="bottom pulse">
+          <button class="big" data-a="decline"><div class="circle red hang">${icon('phone')}</div><div class="lbl">拒否</div></button>
+          <button class="big" data-a="accept"><div class="circle green">${icon('phone')}</div><div class="lbl">応答</div></button>
+        </div></div>`;
+    }
+    show('call'); startRing();
+    ringTimeout = setTimeout(backToSetup, 45000);
+  }
+
+  // ---------- 通話中画面 ----------
+  function inCall(){
+    phase='call'; stopRing(); clearTimeout(ringTimeout); callStart = Date.now();
+    const c = $('#call');
+    if(S.style==='ios'){
+      c.className = 'screen ios calling' + (S.photo?'':' nophoto');
+      c.innerHTML = `${bg()}<div class="shade"></div><div class="layer">
+        <div class="top"><div class="name" style="font-size:32px">${name()}</div><div class="timer" id="callTime">00:00</div></div>
+        <div class="grid">
+          <button class="gbtn tg"><div class="circle">${icon('speaker')}</div><div class="lbl">スピーカー</div></button>
+          <button class="gbtn tg"><div class="circle">${icon('video')}</div><div class="lbl">FaceTime</div></button>
+          <button class="gbtn tg"><div class="circle">${icon('micoff')}</div><div class="lbl">消音</div></button>
+          <button class="gbtn"><div class="circle">${icon('add')}</div><div class="lbl">追加</div></button>
+          <button class="gbtn end" data-a="end"><div class="circle hang">${icon('phone')}</div><div class="lbl">終了</div></button>
+          <button class="gbtn"><div class="circle">${keypadIcon}</div><div class="lbl">キーパッド</div></button>
+        </div></div>`;
+    } else {
+      c.className = 'screen ln' + (S.photo?'':' nophoto');
+      c.innerHTML = `${bg()}<div class="shade"></div><div class="layer">
+        <div class="head">
+          <div class="applbl"><i>${icon('bubble')}</i>LINE音声通話</div>
+          <div class="pic" ${S.photo?`style="background-image:url(${S.photo})"`:''}>${S.photo?'':icon('person')}</div>
+          <div class="name">${name()}</div>
+          <div class="status" id="callTime">00:00</div>
+        </div>
+        <div class="tools">
+          <button class="tool tg"><div class="circle">${icon('micoff')}</div><div class="lbl">マイクオフ</div></button>
+          <button class="tool tg"><div class="circle">${icon('video')}</div><div class="lbl">ビデオ</div></button>
+          <button class="tool tg"><div class="circle">${icon('speaker')}</div><div class="lbl">スピーカー</div></button>
+        </div>
+        <div class="endrow"><button class="big" data-a="end"><div class="circle red hang">${icon('phone')}</div></button></div>
+        </div>`;
+    }
+    const upd = () => { const s=Math.floor((Date.now()-callStart)/1000), el=$('#callTime');
+      if(el) el.textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
+    show('call'); upd(); callTick = setInterval(upd, 500);
+  }
+
+  $('#call').addEventListener('click', e => {
+    const tg = e.target.closest('.tg'); if(tg){ tg.classList.toggle('act'); return; }
+    const b = e.target.closest('[data-a]'); if(!b) return;
+    const a = b.dataset.a;
+    if(a==='accept') inCall();
+    else backToSetup();
+  });
+
+  // ---------- 起動時 ----------
+  const toast = msg => { const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'), 2200); };
+
+  // ホーム画面追加の案内
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  let deferredPrompt = null;
+  if(!standalone && !store.get('installClosed', false)){
+    $('#install').classList.add('on');
+    $('#installText').innerHTML = isIOS
+      ? 'Safariの下にある <b>共有ボタン（□に↑）</b> →「<b>ホーム画面に追加</b>」を押してください。追加したアイコンから開くと、アドレスバーが消えて本物の着信そっくりになります。'
+      : 'ブラウザの「︙」→「<b>ホーム画面に追加</b>」を押してください。追加したアイコンから開くと、アドレスバーが消えて本物の着信そっくりになります。';
+  }
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; $('#installBtn').style.display='block'; });
+  $('#installBtn').addEventListener('click', async () => { if(!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice.catch(()=>{}); deferredPrompt=null; $('#install').classList.remove('on'); });
+  $('#installClose').addEventListener('click', () => { $('#install').classList.remove('on'); store.set('installClosed', true); });
+
+  // 友だちに教える
+  $('#shareBtn').addEventListener('click', async () => {
+    const url = location.href.split('#')[0].split('?')[0];
+    const text = '飲み会を抜けたい時に使える！好きな時間に電話がかかってくるアプリ📞';
+    if(navigator.share){ try{ await navigator.share({title:'コールタイマー', text, url}); }catch(e){} return; }
+    try{ await navigator.clipboard.writeText(`${text} ${url}`); toast('リンクをコピーしました'); }
+    catch(e){ prompt('このリンクを送ってください', url); }
+  });
+  renderSetup();
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
